@@ -1,2 +1,168 @@
 ---
-# tasks file for polkadot-library
+## Adapted from W3F polkadot_common role
+- name: create polkadot group
+  group:
+    name: polkadot
+    state: present
+
+- name: add polkadot user
+  user:
+    name: polkadot
+    group: polkadot
+    append: yes
+
+- name: polkadot binary checksum
+  shell: |
+    set -o pipefail
+    if [ -f /usr/local/bin/polkadot ] && \
+       [ -f  /etc/systemd/system/polkadot.service ] && \
+       [ "$(echo -n '{{ polkadot_binary_checksum }}' | cut -f1 -d':')" != "$(cat /usr/local/bin/polkadot | sha256sum | cut -f1 -d' ')" ]; then
+      echo yes
+    else
+      echo no
+    fi
+  args:
+    executable: /bin/bash
+  register: should_upgrade
+  changed_when: False
+
+- name: download polkadot binary
+  get_url:
+    url: '{{ polkadot_binary_url | quote }}'
+    checksum: '{{ polkadot_binary_checksum | quote }}'
+    dest: /usr/local/bin/polkadot-new
+    mode: '0700'
+    owner: 'polkadot'
+    group: 'polkadot'
+
+- name: check if polkadot service is running
+  shell: |
+    set -o pipefail
+    systemctl is-active --quiet polkadot
+    if [ "$?" == 0 ]; then
+      echo yes
+    else
+      cp /usr/local/bin/polkadot-new /usr/local/bin/polkadot
+      chown polkadot:polkadot /usr/local/bin/polkadot
+      echo no
+    fi
+  args:
+    executable: /bin/bash
+  register: polkadot_service_running
+  changed_when: false
+
+- name: create polkadot dummy config
+  template:
+    src: polkadot_dummy.service.j2
+    dest: /etc/systemd/system/polkadot.service
+    owner: root
+    group: root
+    mode: 0600
+  when: polkadot_service_running.stdout == "no"
+
+- name: start polkadot dummy service
+  systemd:
+    name: polkadot.service
+    state: started
+  changed_when: false
+  when: polkadot_service_running.stdout == "no"
+
+- name: stop polkadot dummy service
+  systemd:
+    name: polkadot.service
+    state: stopped
+  changed_when: false
+  when: polkadot_service_running.stdout == "no"
+
+- name: cronjob for restarting polkadot service
+  cron:
+    name: "restart polkadot"
+    minute: "{{ polkadot_restart_minute }}"
+    hour: "{{ polkadot_restart_hour }}"
+    day: "{{ polkadot_restart_day }}"
+    month: "{{ polkadot_restart_month }}"
+    weekday: "{{ polkadot_restart_weekday }}"
+    job: "/bin/systemctl restart polkadot.service"
+  when: "polkadot_restart_enabled|default(false)|bool"
+
+## Adapted from W3f common role
+- name: install ufw
+  apt:
+    name: ufw
+    state: present
+    update_cache: yes
+
+- name: ufw already enabled
+  command: ufw status verbose
+  register: ufw_status_result
+  changed_when: False
+
+- name: open ssh port
+  command: ufw allow 22/tcp
+  when: not ufw_status_result.stdout is search("22/tcp.*ALLOW IN.*Anywhere")
+
+- name: open node_exporter port
+  command: ufw allow 9100/tcp
+  when:
+    - not ufw_status_result.stdout is search("9100/tcp.*ALLOW IN.*Anywhere")
+
+- name: open p2p port
+  command: ufw allow 30333/tcp
+  when:
+    - not ufw_status_result.stdout is search("30333/tcp.*ALLOW IN.*Anywhere")
+
+- name: open RPC port
+  command: ufw allow 9933/tcp
+  when:
+    - not ufw_status_result.stdout is search("9933/tcp.*ALLOW IN.*Anywhere")
+
+- name: open health check port
+  command: ufw allow 5500/tcp
+  when:
+    - not ufw_status_result.stdout is search("5500/tcp.*ALLOW IN.*Anywhere")
+
+- name: enable firewall
+  shell: |
+    set -o pipefail
+    echo "y" | ufw enable
+  args:
+    executable: /bin/bash
+  when: not ufw_status_result.stdout is search("Status.* active")
+
+- name: copy journald config
+  copy:
+    src: journald.conf
+    dest: /etc/systemd/journald.conf
+
+- name: restart journald
+  systemd:
+    name: systemd-journald
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+  changed_when: false
+
+## Adapted from W3F polkadot_public role
+- name: create polkadot service file
+  template:
+    src: polkadot.service.j2
+    dest: /etc/systemd/system/polkadot.service
+    owner: root
+    group: root
+    mode: 0600
+
+- name: restart polkadot service
+  shell: |
+    set -o pipefail
+    systemctl stop polkadot.service || true
+
+    if [ -f /usr/local/bin/polkadot-new ]; then
+      cp /usr/local/bin/polkadot-new /usr/local/bin/polkadot
+      chown polkadot:polkadot /usr/local/bin/polkadot
+      chmod a+x /usr/local/bin/polkadot
+    fi
+    systemctl daemon-reload
+    systemctl enable polkadot.service
+  args:
+    executable: /bin/bash
+  changed_when: False
