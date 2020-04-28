@@ -14,3 +14,4 @@ polkadot_restart_month: "*"
 polkadot_restart_weekday: "*"
 telemetry_url: "wss://mi.private.telemetry.backend/"
 logging_filter: "sync=trace,afg=trace,babe=debug"
+consul_enable: true

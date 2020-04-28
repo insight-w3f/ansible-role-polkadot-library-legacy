@@ -121,6 +121,30 @@
   when:
     - not ufw_status_result.stdout is search("5500/tcp.*ALLOW IN.*Anywhere")
 
+- name: open consul DNS ports
+  command: ufw allow 8600
+  when:
+    - consul_enable
+    - not ufw_status_result.stdout is search("8600.*ALLOW IN.*Anywhere")
+
+- name: open consul HTTP API port
+  command: ufw allow 8500/tcp
+  when:
+    - consul_enable
+    - not ufw_status_result.stdout is search("8500/tcp.*ALLOW IN.*Anywhere")
+
+- name: open consul LAN serf ports
+  command: ufw allow 8301
+  when:
+    - consul_enable
+    - not ufw_status_result.stdout is search("8301.*ALLOW IN.*Anywhere")
+
+- name: open consul WAN serf ports
+  command: ufw allow 8302
+  when:
+    - consul_enable
+    - not ufw_status_result.stdout is search("8302/tcp.*ALLOW IN.*Anywhere")
+
 - name: enable firewall
   shell: |
     set -o pipefail
