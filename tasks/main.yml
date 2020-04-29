@@ -111,6 +111,11 @@
   when:
     - not ufw_status_result.stdout is search("30333/tcp.*ALLOW IN.*Anywhere")
 
+- name: open client prometheus port
+  command: ufw allow 9610/tcp
+  when:
+    - not ufw_status_result.stdout is search("9160/tcp.*ALLOW IN.*Anywhere")
+
 - name: open RPC port
   command: ufw allow 9933/tcp
   when:
