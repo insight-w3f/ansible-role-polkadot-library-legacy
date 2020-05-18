@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+export AWS_ACCESS_KEY_ID={{aws_access_key_id}}
+export AWS_SECRET_ACCESS_KEY={{aws_secret_access_key}}
+export AWS_REGION={{region}}
+
+echo "Checking bucket for ready file..."
+until [[ $(/usr/local/bin/aws s3 cp s3://{{sync_bucket_uri}}/network/secret_ed25519 /dev/null) ]]
+do
+  sleep 30
+done
+
+echo "Ensuring client is stopped..."
+systemctl stop polkadot.service
+
+echo "Removing existing data..."
+rm -rf /data/polkadot/chains/ksmcc3/
+
+echo "Syncing blockchain from S3..."
+/usr/local/bin/aws s3 cp s3://{{sync_bucket_uri}} /data/polkadot/chains/ksmcc3/ --recursive
+chown -R polkadot:polkadot /data/polkadot
+
+echo "Starting client..."
+systemctl start polkadot.service
+
+echo "Sync complete!"

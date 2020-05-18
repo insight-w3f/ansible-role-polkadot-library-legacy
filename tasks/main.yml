@@ -179,6 +179,67 @@
     owner: root
     group: root
     mode: 0600
+- name: enable source of truth sync
+  block:
+  - name: check to see if awscli installed
+    command: aws --version
+    register: command_result
+    ignore_errors: yes
+    changed_when: command_result.rc != 2
+
+  - name: install awscli
+    block:
+      - name: install unzip
+        apt:
+          name: unzip
+          state: present
+          update_cache: yes
+
+      - name: create download dir
+        file:
+          path: /root/awscli
+          state: directory
+          mode: '0755'
+
+      - name: download awscli
+        get_url:
+          url: 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip'
+          dest: /root/awscli/archive.zip
+          mode: '0700'
+
+      - name: unarchive awscli
+        unarchive:
+          src: /root/awscli/archive.zip
+          remote_src: yes
+          dest: /root/awscli
+
+      - name: install awscli
+        command: /root/awscli/aws/install
+    when: command_result.rc != 0
+
+  - name: copy sync script
+    template:
+      src: blockchain_sync.sh.j2
+      dest: /usr/local/bin/blockchain_sync.sh
+      owner: root
+      group: root
+      mode: '0700'
+
+  - name: create polkaprep service file
+    template:
+      src: polkaprep.service.j2
+      dest: /etc/systemd/system/polkaprep.service
+      owner: root
+      group: root
+      mode: 0600
+
+  - name: enable polkaprep service
+    systemd:
+      name: polkaprep.service
+      state: stopped
+      enabled: yes
+    changed_when: false
+  when: use_source_of_truth
 
 - name: restart polkadot service
   shell: |
