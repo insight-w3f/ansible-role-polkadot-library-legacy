@@ -9,6 +9,7 @@ ExecStart=/usr/local/bin/polkadot \
          --chain={{ chain }} \
          --rpc-external \
          --rpc-cors=all \
+         --ws-external \
          {% if loggingFilter is defined and loggingFilter|length %}
          -l{{ loggingFilter }} \
          {% endif %}
