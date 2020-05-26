@@ -121,6 +121,11 @@
   when:
     - not ufw_status_result.stdout is search("9933/tcp.*ALLOW IN.*Anywhere")
 
+- name: open WSS port
+  command: ufw allow 9944/tcp
+  when:
+    - not ufw_status_result.stdout is search("9944/tcp.*ALLOW IN.*Anywhere")
+
 - name: open health check port
   command: ufw allow 5500/tcp
   when:
